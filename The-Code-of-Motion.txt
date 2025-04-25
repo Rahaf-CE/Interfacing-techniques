@@ -1,0 +1,200 @@
+#include <Wire.h>
+#include <Adafruit_VL53L0X.h>
+
+// Define motor control pins
+#define IN1 18
+#define IN2 19
+#define IN3 15
+#define IN4 2
+#define ENA 5 // Enable pin for Motor A
+#define ENB 4 // Enable pin for Motor B
+
+// Set the motor speed (0-255)
+// int motorSpeed = 100; //PWM speed control
+  int leftMotorSpeed = 100; //100
+  int rightMotorSpeed = 115; //115
+
+// IR Sensors pins
+#define IR_SENSOR_LEFT 32
+#define IR_SENSOR_RIGHT 33
+
+// Define encoder pins
+#define ENCODER_A_CHANNEL_A 12
+#define ENCODER_A_CHANNEL_B 14
+#define ENCODER_B_CHANNEL_A 27
+#define ENCODER_B_CHANNEL_B 26
+
+volatile int encoderCountA = 0;
+volatile int encoderCountB = 0;
+
+// Create a VL53L0X object
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+
+void IRAM_ATTR handleEncoderA() {
+  encoderCountA += (digitalRead(ENCODER_A_CHANNEL_A) == digitalRead(ENCODER_A_CHANNEL_B)) ? 1 : -1;
+}
+
+void IRAM_ATTR handleEncoderB() {
+  encoderCountB += (digitalRead(ENCODER_B_CHANNEL_A) == digitalRead(ENCODER_B_CHANNEL_B)) ? 1 : -1;
+}
+
+void setup() {
+  Serial.begin(921600);
+
+  // wait until serial port opens for native USB devices
+  while (!Serial) {
+    delay(1);
+  }
+  
+  Serial.println("Adafruit VL53L0X test");
+  if (!lox.begin()) {
+    Serial.println(F("Failed to boot VL53L0X"));
+    while (1);
+  }
+  // power 
+  Serial.println(F("VL53L0X API Simple Ranging example\n\n")); 
+
+  // Set all the motor control pins to outputs
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  pinMode(ENA, OUTPUT); // Set Motor A enable pin as output
+  pinMode(ENB, OUTPUT); // Set Motor B enable pin as output
+
+  // Set IR Sensor pins
+  pinMode(IR_SENSOR_LEFT, INPUT);
+  pinMode(IR_SENSOR_RIGHT, INPUT);
+
+  // Set encoder pins as inputs
+  pinMode(ENCODER_A_CHANNEL_A, INPUT);
+  pinMode(ENCODER_A_CHANNEL_B, INPUT);
+  pinMode(ENCODER_B_CHANNEL_A, INPUT);
+  pinMode(ENCODER_B_CHANNEL_B, INPUT);
+
+  // Attach interrupts for encoders
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A_CHANNEL_A), handleEncoderA, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A_CHANNEL_B), handleEncoderA, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_B_CHANNEL_A), handleEncoderB, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_B_CHANNEL_B), handleEncoderB, CHANGE);
+}
+
+void loop() {
+
+  //moveforword();
+
+  // Read encoder values and print them
+  Serial.print("Encoder A: ");
+  Serial.println(encoderCountA);
+  Serial.print("Encoder B: ");
+  Serial.println(encoderCountB);
+
+  // Read IR sensor values
+  int irLeftValue = digitalRead(IR_SENSOR_LEFT);
+  int irRightValue = digitalRead(IR_SENSOR_RIGHT);
+
+  // Print IR sensor values 
+  Serial.print("IR Sensor Left: ");
+  Serial.println(irLeftValue);
+  Serial.print("IR Sensor Right: ");
+  Serial.println(irRightValue);
+
+  // Read and print the distance from the VL53L0X sensor
+  VL53L0X_RangingMeasurementData_t measure;
+  lox.rangingTest(&measure, false); // Pass in 'true' to get debug data printout!
+
+  int distance = 0; // Variable to store the measured distance
+
+  if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+    distance = measure.RangeMilliMeter / 10.0;
+    Serial.print("Distance (cm): ");
+    Serial.println(distance);
+  } else {
+    Serial.println("Out of range");
+  }
+
+
+  if(irLeftValue == 0 && irRightValue ==  0 && distance < 12){
+
+  turnRight();
+  turnRight();
+  turnRight();
+  turnRight();
+
+    }
+    
+  else if(irLeftValue == 0 && irRightValue ==  1) {
+    turnRight();
+    turnRight();
+    delay(500); // Wait for 5 seconds to observe the turn
+  }
+
+    else if(irLeftValue == 1 && irRightValue ==  0) {
+    turnLeft();
+
+    delay(500); // Wait for 5 seconds to observe the turn
+  }
+
+  else {
+    moveforword();
+
+  }
+}
+
+
+
+void moveforword() {
+
+  // Enable the motors with the desired speed
+  analogWrite(ENA, rightMotorSpeed);
+  analogWrite(ENB, leftMotorSpeed);
+
+  // Move forward
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+
+void turnRight() {
+  // Enable the motors with the desired speed for turning
+  analogWrite(ENA, rightMotorSpeed);
+  analogWrite(ENB, leftMotorSpeed/2);
+
+  // Turn right by setting the motors in opposite directions
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+  // Delay to allow the robot to turn right
+  delay(500); // Adjust delay as needed for a proper turn
+
+  // Stop the motors
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+void turnLeft() {
+  // Enable the motors with the desired speed for turning
+  analogWrite(ENA, rightMotorSpeed);
+  analogWrite(ENB, leftMotorSpeed * 2);
+
+  // Turn left by setting the motors in opposite directions
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+
+  // Delay to allow the robot to turn left
+  delay(500); // Adjust delay as needed for a proper turn
+
+  // Stop the motors
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
